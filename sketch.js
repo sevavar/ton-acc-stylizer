@@ -2,7 +2,10 @@
 let uiContainer;
 let canvasContainer;
 let selectedSize;
+let displayWidth;
+let displayHeight;
 let canvas;
+let pd = window.devicePixelRatio || 1;
 
 
 // UI
@@ -13,10 +16,10 @@ let buttons = {};
 
 //2D
 let img;
-let gridSize = 20;
+let gridSize =  8;
 let symbolString = "┼:╱╱╱░▒▓ ╱—:╱█";
 let symbolColor = [255, 255, 255];
-let symbolScale = 1;
+let symbolScale = 0;
 let indexValue = 0;
 
 
@@ -25,11 +28,11 @@ let defaultSVG = 'assets/default.svg';
 let aspectRatio = 1;
 let shapes = []; // SVG shapes aray
 let dragging = false;
-let posX = 0;
+let posX = 50;
 let posY = 0;
 let posZ = 0;
 let rotationX = 0;
-let rotationY = 0;
+let rotationY = 0.5;
 let lastMouseX, lastMouseY;
 let offscreen; // Ofscreen buffer
 let zoom = 0.8;
@@ -38,7 +41,7 @@ let extrusionDepth = 200;
 
 
 function preload() {
-  myFont = loadFont('assets/ark-pixel-16px-proportional-zh_cn.ttf');
+  myFont = loadFont('assets/NotoSansJP-Regular.ttf');
 }
 
 function createUI() {
@@ -69,7 +72,7 @@ function createUI() {
   label2.parent(uiContainer);
 
   // Symbol Size Slider
-  sliders.gridSize = createSlider(10, 40, gridSize);
+  sliders.gridSize = createSlider(6, 40, gridSize);
   sliders.gridSize.class('slider');
   sliders.gridSize.input(() => {
     gridSize = sliders.gridSize.value();
@@ -196,50 +199,82 @@ function createUI() {
   inputs.format.option('1:1', [1080, 1080]);
   inputs.format.option('9:16', [1080, 1920]);
   inputs.format.option('16:9', [1920, 1080]);
-  inputs.format.selected([1080, 1080]);
+  inputs.format.selected('1:1', [1080, 1080]);
   inputs.format.parent(uiContainer); 
 
  inputs.format.changed(() => {
+  // Capture selected dimensions and set display size
   selectedSize = inputs.format.value().split(',').map(Number);
-  resizeCanvas(selectedSize[0], selectedSize[1]);
-  
-  // Adjust the camera perspective based on the new canvas size
-  aspectRatio = selectedSize[0] / selectedSize[1];
-  offscreen.ortho(-width / 2, width / 2, -height / 2, height / 2, -5000, 5000);
-  background("#070708");
-  canvas.style('width', width / 2 + 'px');
-  canvas.style('height', height / 2 + 'px');
-  
-  //text("drag .png or .jpg here", width / 2, height / 2);
+  displayWidth = selectedSize[0];
+  displayHeight = selectedSize[1];
+
+  // Set canvas CSS to match display size without further scaling
+  canvas.style('width', displayWidth + 'px');
+  canvas.style('height', displayHeight + 'px');
+
+  // Resize the main canvas with `pd` adjustment for consistent visual size
+  resizeCanvas(displayWidth / pd, displayHeight / pd);
+
+  // Resize offscreen buffer for Retina display scaling consistency
+  offscreen = createGraphics(displayWidth * pd, displayHeight * pd, WEBGL);
+  offscreen.pixelDensity(pd);
+  offscreen.ortho(
+    -displayWidth / 2, displayWidth / 2,
+    -displayHeight / 2, displayHeight / 2,
+    -5000, 5000
+  );
 });
+
   
 
 }
-
 function setup() {
   loadStrings(defaultSVG, (data) => {
-  // Join the strings and simulate a file drop
-  let svgData = data.join('\n');
-  handleFileDrop({ type: 'image', subtype: 'svg+xml', data: svgData });
+    let svgData = data.join('\n');
+    handleFileDrop({ type: 'image', subtype: 'svg+xml', data: svgData });
   });
+
   noSmooth();
   uiContainer = select('#ui-container');
   createUI();
 
   canvasContainer = select('#canvas-container');
-  canvas = createCanvas(1080, 1080, WEBGL);
-  canvas.style('width', width / 2 + 'px');
-  canvas.style('height', height / 2 + 'px');
+
+  // Desired display size (visual size in pixels)
+  displayWidth = 540;
+  displayHeight = 540;
+
+
+  // Create the canvas with the base resolution
+  canvas = createCanvas(540, 540, WEBGL);
+
+  canvas.pixelDensity(pd);
+  // Set the canvas' CSS to scale it to the visual size (display size) without affecting rendering resolution
+  canvas.style('width', displayWidth + 'px');
+  canvas.style('height', displayHeight + 'px');
+
+  // Set the canvas parent
   canvas.parent(canvasContainer);
+
+  // Enable file drop functionality
   canvas.drop(handleFileDrop);
+
+  // Set up text rendering settings
   textFont(myFont);
   textAlign(CENTER, CENTER);
-  
-  // Create an offscreen buffer for rendering the 3D model
-  offscreen = createGraphics(1080, 1080, WEBGL);
-  offscreen.ortho(-width / 2, width / 2, -height / 2, height / 2, -5000, 5000);
-}
 
+  // Create an offscreen buffer with the same size as the actual canvas resolution
+  offscreen = createGraphics(displayWidth * pd, displayHeight * pd, WEBGL);
+  offscreen.ortho(
+    -displayWidth / 2 * pd, displayWidth / 2 * pd,
+    -displayHeight / 2 * pd, displayHeight / 2 * pd,
+    -5000, 5000
+  );
+
+  // Set the correct pixel density for the offscreen buffer
+  offscreen.pixelDensity(pd); // Ensures the offscreen buffer matches the scaling
+
+}
 
 function draw() {
   background("#070708");
@@ -253,11 +288,9 @@ function draw() {
     offscreen.push();
     offscreen.rotateX(rotationX);
     offscreen.rotateY(rotationY);
-    offscreen.scale(zoom);
+    offscreen.scale(zoom * pd);
     offscreen.translate(posX, posY, posZ);
-    //offscreen.fill(255);
     offscreen.noStroke();
-    
 
     // Front and back faces
     for (let points of shapes) {
@@ -269,44 +302,42 @@ function draw() {
       points.forEach(p => offscreen.vertex(p.x, p.y, 0));
       offscreen.endShape(CLOSE);
 
-    let lightDirection = createVector(0, -1, 0);
-    // Loop through each point and draw connecting faces with shading
-    for (let i = 0; i < points.length; i++) {
-      let next = (i + 1) % points.length;
+      let lightDirection = createVector(0, -1, 0);
+      // Loop through each point and draw connecting faces with shading
+      for (let i = 0; i < points.length; i++) {
+        let next = (i + 1) % points.length;
 
-      // Define the four vertices of the connecting face
-      let v1 = createVector(points[i].x, points[i].y, -extrusionDepth);
-      let v2 = createVector(points[next].x, points[next].y, -extrusionDepth);
-      let v3 = createVector(points[next].x, points[next].y, 0);
-      let v4 = createVector(points[i].x, points[i].y, 0);
+        // Define the four vertices of the connecting face
+        let v1 = createVector(points[i].x, points[i].y, -extrusionDepth);
+        let v2 = createVector(points[next].x, points[next].y, -extrusionDepth);
+        let v3 = createVector(points[next].x, points[next].y, 0);
+        let v4 = createVector(points[i].x, points[i].y, 0);
 
-      // Calculate normal for the face
-      let edge1 = p5.Vector.sub(v2, v1);
-      let edge2 = p5.Vector.sub(v3, v1);
-      normal = edge1.cross(edge2).normalize();
+        // Calculate normal for the face
+        let edge1 = p5.Vector.sub(v2, v1);
+        let edge2 = p5.Vector.sub(v3, v1);
+        normal = edge1.cross(edge2).normalize();
 
-      // Calculate dot product with light direction
-      dot = normal.dot(lightDirection);
-      let shade = map(dot, -1, 1, 50, 150); // Map the dot product to a shade value
+        // Calculate dot product with light direction
+        dot = normal.dot(lightDirection);
+        let shade = map(dot, -1, 1, 50, 150); // Map the dot product to a shade value
 
-      // Set fill color based on the calculated shade
-      offscreen.fill(shade, shade, shade, 255);
+        // Set fill color based on the calculated shade
+        offscreen.fill(shade, shade, shade, 255);
 
-      // Draw the connecting face
-      offscreen.beginShape();
-      offscreen.vertex(v1.x, v1.y, v1.z);
-      offscreen.vertex(v2.x, v2.y, v2.z);
-      offscreen.vertex(v3.x, v3.y, v3.z);
-      offscreen.vertex(v4.x, v4.y, v4.z);
-      offscreen.endShape(CLOSE);
-    }
+        // Draw the connecting face
+        offscreen.beginShape();
+        offscreen.vertex(v1.x, v1.y, v1.z);
+        offscreen.vertex(v2.x, v2.y, v2.z);
+        offscreen.vertex(v3.x, v3.y, v3.z);
+        offscreen.vertex(v4.x, v4.y, v4.z);
+        offscreen.endShape(CLOSE);
+      }
     }
     offscreen.pop();
-    
-    
   } else if (img) {
     // Raster image case: Draw the image onto the offscreen buffer
-    offscreen.image(img, -width / 2, -height / 2, width, height);
+    offscreen.image(img, -width / 2 * pd, -height / 2 * pd, width * pd, height * pd);
   }
 
   // Load the pixels from the offscreen buffer for symbol generation
@@ -327,10 +358,10 @@ function draw() {
   for (let x = 0; x < columns; x++) {
     for (let y = 0; y < rows; y++) {
       // Map x and y to image coordinates
-      let imgX = floor(map(x, 0, columns, 0, offscreen.width));
-      let imgY = floor(map(y, 0, rows, 0, offscreen.height));
+      let imgX = floor(map(x, 0, columns, 0, offscreen.width*pd));
+      let imgY = floor(map(y, 0, rows, 0, offscreen.height*pd));
 
-      let i = (imgY * offscreen.width + imgX) * 4;
+      let i = (imgY * offscreen.width*pd + imgX) * 4;
       let r = offscreen.pixels[i];
       let g = offscreen.pixels[i + 1];
       let b = offscreen.pixels[i + 2];
