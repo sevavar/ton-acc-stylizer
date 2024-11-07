@@ -181,7 +181,7 @@ function createUI() {
   sliders.extrusion.input(() => {
     extrusionDepth = sliders.extrusion.value();
     label7.html(`
-      <span class="label-left">EXTRUSION (FOR SVG)</span>
+      <span class="label-left">EXTRUDE</span>
       <span class="label-right">${extrusionDepth}</span>
     `);
   });
