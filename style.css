@@ -171,6 +171,46 @@ a {
 }
 
 
+.checkbox {
+    display: flex;
+    align-items: center;
+    padding-top: 20px;
+}
+
+.checkbox input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  border: 1px solid white;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+}
+
+.checkbox input[type="checkbox"]:checked::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  background-color: white;
+  margin: 2px;
+  position: absolute;
+  top: 1px;
+  left: 1px;
+}
+
+
+.checkbox label {
+  display: flex;
+  cursor: pointer;
+  gap: 8px;
+}
+
+
+
 /*Slider*/
 
 input[type=range] {
