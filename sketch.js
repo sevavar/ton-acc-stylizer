@@ -12,12 +12,13 @@ let pd = window.devicePixelRatio || 1;
 let sliders = {};
 let inputs = {};
 let buttons = {};
+let checkboxes = {};
 
 
 //2D
 let img;
-let gridSize =  8;
-let symbolString = "┼:╱╱╱░▒▓ ╱—:╱█";
+let gridSize = 6 ;
+let symbolString = " ┼:╱╱╱░▒▓ ╱—:╱█";
 let symbolColor = [255, 255, 255];
 let symbolScale = 0;
 let indexValue = 0;
@@ -28,15 +29,16 @@ let defaultSVG = 'assets/default.svg';
 let aspectRatio = 1;
 let shapes = []; // SVG shapes aray
 let dragging = false;
-let posX = 40;
-let posY = -60;
+let posX = 0;
+let posY = 0;
 let posZ = 0;
-let rotationX = 0.8;
-let rotationY = 0.6;
+let rotationX = 0;
+let rotationY = 0;
 let lastMouseX, lastMouseY;
 let offscreen; // Ofscreen buffer
 let zoom = 0.9;
-let extrusionDepth = 2000;
+let extrusionDepth = 50;
+let animate = true;
 
 
 
@@ -167,9 +169,9 @@ function createUI() {
   inputs.color.parent(uiContainer);
 
  
-  // EXTRUSION
+  // Extrusion
   let label7 = createP(`
-    <span class="label-left">EXTRUSION (FOR SVG)</span>
+    <span class="label-left">EXTRUDE</span>
   `);
   label7.class('label-container');
   label7.parent(uiContainer);
@@ -184,7 +186,14 @@ function createUI() {
     `);
   });
   sliders.extrusion.parent(uiContainer);
-
+  
+    // Animate checkbox
+  checkboxes.animate = createCheckbox('ANIMATE', true);
+  checkboxes.animate.class('checkbox');
+  checkboxes.animate.changed(() => {
+    animate = checkboxes.animate.checked();
+  });
+  checkboxes.animate.parent(uiContainer);
   
    //Format Label
   let label8 = createP(`
@@ -281,6 +290,11 @@ function draw() {
   offscreen.background(0);
   
   handleKeyboardInput();
+  if (animate) {
+    rotationY += 0.1;
+  }
+  
+  posZ = extrusionDepth/2;
 
   // Check if we have an SVG or a raster image
   if (shapes.length > 0) {
