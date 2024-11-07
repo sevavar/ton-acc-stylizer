@@ -28,20 +28,20 @@ let defaultSVG = 'assets/default.svg';
 let aspectRatio = 1;
 let shapes = []; // SVG shapes aray
 let dragging = false;
-let posX = 50;
-let posY = 0;
+let posX = 40;
+let posY = -60;
 let posZ = 0;
-let rotationX = 0;
-let rotationY = 0.5;
+let rotationX = 0.8;
+let rotationY = 0.6;
 let lastMouseX, lastMouseY;
 let offscreen; // Ofscreen buffer
-let zoom = 0.8;
-let extrusionDepth = 200;
+let zoom = 0.9;
+let extrusionDepth = 2000;
 
 
 
 function preload() {
-  myFont = loadFont('assets/NotoSansJP-Regular.ttf');
+  myFont = loadFont('assets/ark-pixel-16px-proportional-zh_cn.ttf');
 }
 
 function createUI() {
@@ -440,240 +440,157 @@ function handleKeyboardInput() {
 
 
 function handleFileDrop(file) {
-  if (file.type === 'image' && file.subtype === 'svg+xml') {
-      let svgData = file.data;
+    if (file.type === 'image' && file.subtype === 'svg+xml') {
+        let svgData = file.data;
+        
+        // Handle base64 encoded SVG
+        if (svgData.startsWith('data:image/svg+xml;base64,')) {
+            const base64Data = svgData.split(',')[1];
+            svgData = atob(base64Data);
+        }
 
-      // Check if the data is base64 encoded
-      if (svgData.startsWith('data:image/svg+xml;base64,')) {
-          const base64Data = svgData.split(',')[1];
-          svgData = atob(base64Data); // Decode base64
-      }
+        // Create temporary container
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.visibility = 'hidden';
+        document.body.appendChild(container);
 
-      // Now svgData should be a valid SVG string
-      svgData = decodeHTMLEntities(svgData).trim(); // Decode any HTML entities
+        try {
+            // Parse SVG dimensions and viewBox
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(svgData, 'image/svg+xml');
+            const svgElement = svgDoc.querySelector('svg');
+            
+            // Get SVG dimensions and viewBox
+            let viewBox = svgElement.viewBox.baseVal;
+            let svgWidth, svgHeight;
+            
+            if (viewBox && viewBox.width && viewBox.height) {
+                // Use viewBox dimensions if available
+                svgWidth = viewBox.width;
+                svgHeight = viewBox.height;
+            } else {
+                // Fall back to width/height attributes or default dimensions
+                svgWidth = parseFloat(svgElement.getAttribute('width')) || displayWidth;
+                svgHeight = parseFloat(svgElement.getAttribute('height')) || displayHeight;
+                
+                // Create viewBox if it doesn't exist
+                viewBox = {
+                    x: 0,
+                    y: 0,
+                    width: svgWidth,
+                    height: svgHeight
+                };
+            }
 
-      let parser = new DOMParser();
-      let svgDoc = parser.parseFromString(svgData, 'image/svg+xml');
+            // Initialize SVG.js with display dimensions
+            const draw = SVG().addTo(container).size(displayWidth, displayHeight);
+            const svg = draw.svg(svgData);
+            
+            // Calculate scale to fit while maintaining aspect ratio
+            const scaleX = displayWidth / svgWidth;
+            const scaleY = displayHeight / svgHeight;
+            const scale = Math.min(scaleX, scaleY) * 1; // 90% of available space for padding
+            
+            // Calculate centering offsets
+            const offsetX = (-1*(svgWidth * scale)) / 2;
+            const offsetY = (-1*(svgHeight * scale)) / 2;
 
-      // Check for parsing errors
-      if (svgDoc.getElementsByTagName('parsererror').length > 0) {
-          const parserError = svgDoc.getElementsByTagName('parsererror')[0];
-          console.error('Error parsing SVG:', parserError.textContent);
-          console.error('SVG Document:', svgData);
-          return;
-      }
+            // Reset shapes array
+            shapes = [];
 
-      let pathElements = svgDoc.querySelectorAll('path'); // Get all <path> elements
-      console.log('Parsed SVG Document:', svgDoc);
+            // Function to transform point coordinates
+            function transformPoint(x, y) {
+                // Normalize coordinates relative to viewBox
+                const normalizedX = (x - (viewBox.x || 0)) / viewBox.width * svgWidth;
+                const normalizedY = (y - (viewBox.y || 0)) / viewBox.height * svgHeight;
+                
+                // Apply scale and center
+                return {
+                    x: normalizedX * scale + offsetX,
+                    y: normalizedY * scale + offsetY
+                };
+            }
 
-      shapes = []; // Reset shapes for new SVG
+            // Function to extract points from path data
+            function extractPointsFromPath(pathData) {
+                const points = [];
+                const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                pathEl.setAttribute('d', pathData);
+                
+                // Get total length of path
+                const length = pathEl.getTotalLength();
+                const numPoints = Math.max(20, Math.ceil(length / 10)); // Adjust sampling density
 
-      for (let pathElement of pathElements) {
-          let pathData = pathElement.getAttribute('d');
-          console.log('Path data:', pathData);
-          let svgPoints = parseSVGPath(pathData);
-          console.log('Extracted points:', svgPoints);
+                // Sample points along the path
+                for (let i = 0; i <= numPoints; i++) {
+                    const point = pathEl.getPointAtLength(i / numPoints * length);
+                    const transformed = transformPoint(point.x, point.y);
+                    points.push(transformed);
+                }
+                return points;
+            }
 
-          if (svgPoints.length > 0) {
-              const svgWidth = parseFloat(svgDoc.documentElement.getAttribute('width')) || 100; // Fallback width
-              const svgHeight = parseFloat(svgDoc.documentElement.getAttribute('height')) || 100; // Fallback height
+            // Process all SVG elements
+            svg.find('*').forEach(el => {
+                let points = [];
+                
+                switch (el.type) {
+                    case 'path':
+                        points = extractPointsFromPath(el.attr('d'));
+                        break;
+                        
+                    case 'rect':
+                        const x = parseFloat(el.attr('x')) || 0;
+                        const y = parseFloat(el.attr('y')) || 0;
+                        const w = parseFloat(el.attr('width'));
+                        const h = parseFloat(el.attr('height'));
+                        const rectPath = `M${x},${y} h${w} v${h} h-${w} Z`;
+                        points = extractPointsFromPath(rectPath);
+                        break;
+                        
+                    case 'circle':
+                        const cx = parseFloat(el.attr('cx')) || 0;
+                        const cy = parseFloat(el.attr('cy')) || 0;
+                        const r = parseFloat(el.attr('r'));
+                        const circlePath = `M${cx-r},${cy} a${r},${r} 0 1,0 ${r*2},0 a${r},${r} 0 1,0 -${r*2},0`;
+                        points = extractPointsFromPath(circlePath);
+                        break;
+                        
+                    case 'polygon':
+                    case 'polyline':
+                        const pointsAttr = el.attr('points').trim();
+                        const coords = pointsAttr.split(/[\s,]+/).map(Number);
+                        for (let i = 0; i < coords.length; i += 2) {
+                            const transformed = transformPoint(coords[i], coords[i+1]);
+                            points.push(transformed);
+                        }
+                        if (el.type === 'polygon') {
+                            points.push({...points[0]}); // Close polygon
+                        }
+                        break;
+                }
 
-              // Calculate scaling factor
-              const scale = Math.min(width / svgWidth, height / svgHeight);
+                if (points.length > 0) {
+                    shapes.push(points);
+                }
+            });
 
-              // Calculate offsets to center the SVG
-              const xOffset = (width - (svgWidth * scale)) / 2 - width / 2;
-              const yOffset = (height - (svgHeight * scale)) / 2 - height / 2;
+            // Cleanup
+            container.remove();
+            console.log('Extracted shapes:', shapes);
 
-              // Transform points to be centered and scaled
-              let transformedPoints = svgPoints.map(point => ({
-                  x: xOffset + point.x * scale,
-                  y: yOffset + point.y * scale
-              }));
-
-              shapes.push(transformedPoints); // Add the transformed points to shapes array
-          }
-      }
-  } else if (file.type === 'image'){
+        } catch (error) {
+            console.error('Error processing SVG:', error);
+            container.remove();
+        }
+    } else if (file.type === 'image'){
 
     img = loadImage(file.data, () => {
       // Resize the image to fit the canvas
       img.resize(width, height);
     });
     shapes.length = 0;
-
-  }
-}
-
-// Function to decode HTML-encoded strings
-function decodeHTMLEntities(str) {
-  const textarea = document.createElement('textarea');
-  textarea.innerHTML = str; // Using innerHTML will decode the entities
-  return textarea.value;
-}
-
-function parseSVGPath(pathData) {
-    let points = [];
-    let commands = pathData.match(/[a-df-z][^a-df-z]*/ig);
-    let currentPoint = { x: 0, y: 0 };
-    let startPoint = { x: 0, y: 0 };
-    let controlPoint = { x: 0, y: 0 };
-    let firstPoint = null;
-    let lastCommand = '';
-
-    function addVertex(x, y) {
-        points.push({ type: 'vertex', x, y });
-        currentPoint = { x, y };
     }
 
-    function addBezierVertex(x1, y1, x2, y2, x, y) {
-        if (points.length === 0 || (lastCommand !== 'C' && lastCommand !== 'c' && 
-            lastCommand !== 'S' && lastCommand !== 's')) {
-            points.push({ type: 'vertex', x: currentPoint.x, y: currentPoint.y });
-        }
-        points.push({ type: 'bezierVertex', x1, y1, x2, y2, x, y });
-        currentPoint = { x, y };
-        controlPoint = { x: x2, y: y2 };
-    }
-
-    function addQuadraticVertex(x1, y1, x, y) {
-        if (points.length === 0 || (lastCommand !== 'Q' && lastCommand !== 'q' && 
-            lastCommand !== 'T' && lastCommand !== 't')) {
-            points.push({ type: 'vertex', x: currentPoint.x, y: currentPoint.y });
-        }
-        // Convert quadratic to cubic Bezier
-        const cx1 = currentPoint.x + (2/3) * (x1 - currentPoint.x);
-        const cy1 = currentPoint.y + (2/3) * (y1 - currentPoint.y);
-        const cx2 = x + (2/3) * (x1 - x);
-        const cy2 = y + (2/3) * (y1 - y);
-        points.push({ type: 'bezierVertex', x1: cx1, y1: cy1, x2: cx2, y2: cy2, x, y });
-        currentPoint = { x, y };
-        controlPoint = { x: x1, y: y1 };
-    }
-
-    for (let command of commands) {
-        let type = command[0];
-        let values = command.slice(1).trim().split(/[\s,]+/).map(Number);
-        lastCommand = type;
-
-        switch (type) {
-            case 'M':  // Move to absolute
-                currentPoint = { x: values[0], y: values[1] };
-                startPoint = { ...currentPoint };
-                firstPoint = { ...currentPoint };
-                addVertex(currentPoint.x, currentPoint.y);
-                break;
-
-            case 'm':  // Move to relative
-                currentPoint = { x: currentPoint.x + values[0], y: currentPoint.y + values[1] };
-                startPoint = { ...currentPoint };
-                if (!firstPoint) firstPoint = { ...currentPoint };
-                addVertex(currentPoint.x, currentPoint.y);
-                break;
-
-            case 'L':  // Line to absolute
-                addVertex(values[0], values[1]);
-                break;
-
-            case 'l':  // Line to relative
-                addVertex(currentPoint.x + values[0], currentPoint.y + values[1]);
-                break;
-
-            case 'H':  // Horizontal line absolute
-                addVertex(values[0], currentPoint.y);
-                break;
-
-            case 'h':  // Horizontal line relative
-                addVertex(currentPoint.x + values[0], currentPoint.y);
-                break;
-
-            case 'V':  // Vertical line absolute
-                addVertex(currentPoint.x, values[0]);
-                break;
-
-            case 'v':  // Vertical line relative
-                addVertex(currentPoint.x, currentPoint.y + values[0]);
-                break;
-
-            case 'C':  // Cubic Bezier absolute
-                addBezierVertex(
-                    values[0], values[1],
-                    values[2], values[3],
-                    values[4], values[5]
-                );
-                break;
-
-            case 'c':  // Cubic Bezier relative
-                addBezierVertex(
-                    currentPoint.x + values[0], currentPoint.y + values[1],
-                    currentPoint.x + values[2], currentPoint.y + values[3],
-                    currentPoint.x + values[4], currentPoint.y + values[5]
-                );
-                break;
-
-            case 'S':  // Smooth cubic Bezier absolute
-                let sx1 = currentPoint.x + (currentPoint.x - controlPoint.x);
-                let sy1 = currentPoint.y + (currentPoint.y - controlPoint.y);
-                addBezierVertex(
-                    sx1, sy1,
-                    values[0], values[1],
-                    values[2], values[3]
-                );
-                break;
-
-            case 's':  // Smooth cubic Bezier relative
-                let rsx1 = currentPoint.x + (currentPoint.x - controlPoint.x);
-                let rsy1 = currentPoint.y + (currentPoint.y - controlPoint.y);
-                addBezierVertex(
-                    rsx1, rsy1,
-                    currentPoint.x + values[0], currentPoint.y + values[1],
-                    currentPoint.x + values[2], currentPoint.y + values[3]
-                );
-                break;
-
-            case 'Q':  // Quadratic Bezier absolute
-                addQuadraticVertex(
-                    values[0], values[1],
-                    values[2], values[3]
-                );
-                break;
-
-            case 'q':  // Quadratic Bezier relative
-                addQuadraticVertex(
-                    currentPoint.x + values[0], currentPoint.y + values[1],
-                    currentPoint.x + values[2], currentPoint.y + values[3]
-                );
-                break;
-
-            case 'T':  // Smooth quadratic Bezier absolute
-                let tx1 = currentPoint.x + (currentPoint.x - controlPoint.x);
-                let ty1 = currentPoint.y + (currentPoint.y - controlPoint.y);
-                addQuadraticVertex(
-                    tx1, ty1,
-                    values[0], values[1]
-                );
-                break;
-
-            case 't':  // Smooth quadratic Bezier relative
-                let rtx1 = currentPoint.x + (currentPoint.x - controlPoint.x);
-                let rty1 = currentPoint.y + (currentPoint.y - controlPoint.y);
-                addQuadraticVertex(
-                    rtx1, rty1,
-                    currentPoint.x + values[0], currentPoint.y + values[1]
-                );
-                break;
-
-            case 'Z':  // Close path
-            case 'z':
-                if (firstPoint) {
-                    addVertex(firstPoint.x, firstPoint.y);
-                }
-                break;
-
-            default:
-                console.warn(`Unknown command: ${type}`);
-        }
-    }
-
-    return points;
 }
