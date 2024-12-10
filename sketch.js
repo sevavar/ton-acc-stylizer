@@ -5,7 +5,7 @@ let selectedSize;
 let displayWidth;
 let displayHeight;
 let canvas;
-let pd = 1;
+const pd = 2;
 
 
 // UI
@@ -254,6 +254,7 @@ console.log(`Effective Width: ${displayWidth * pd}, Height: ${displayHeight * pd
 
 }
 function setup() {
+  console.log('Device Pixel Ratio:', window.devicePixelRatio);
   loadStrings(defaultSVG, (data) => {
     let svgData = data.join('\n');
     handleFileDrop({ type: 'image', subtype: 'svg+xml', data: svgData });
@@ -636,6 +637,4 @@ function createFileName(prefix, extension){
   let datePart = `${now.getDate()}${now.getMonth() + 1}${now.getFullYear()}`;
   let timePart = `${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
   return `${prefix}_${datePart}${timePart}.${extension}`;
-}
-
 }
