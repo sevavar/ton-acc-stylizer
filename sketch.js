@@ -209,7 +209,7 @@ inputs.format.option('1080*1080', [540, 540]);
 inputs.format.option('1080*1920', [540, 960]);
 inputs.format.option('1920*1080', [960, 540]);
 inputs.format.option('2048*2048', [1024, 1024]);
-inputs.format.option('2560*1440 (4K)', [1280, 720]); 
+inputs.format.option('2560*1440 (2K)', [1280, 720]); 
 inputs.format.option('3840*2160 (4K)', [1920, 1080]); 
 inputs.format.selected('1:1'); // Default selected value
 inputs.format.parent(uiContainer);
