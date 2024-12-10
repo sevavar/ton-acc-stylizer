@@ -97,7 +97,7 @@ a {
 
 .slider, .button, .smallbutton, .mediumbutton {
     display: block;
-    margin: 10px 0;
+    margin: 20px 0;
     font-size: 12px;
     text-align: center;
     text-decoration: none;
@@ -111,16 +111,18 @@ a {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: #000;
-    color: white;
+    background-color: #fff;
+    color: #000;
     border: none;
     padding: 10px;
     white-space: nowrap;
+
 }
 
 
 .button:hover, .smallbutton:hover, .mediumbutton:hover {
     background-color: #BABABA;
+    color: #000;
 }
 
 .button:active, .smallbutton:active {
@@ -257,4 +259,3 @@ input[type=range]::-ms-thumb {
     cursor: pointer;
     border: 0px solid #000;
 }
-
