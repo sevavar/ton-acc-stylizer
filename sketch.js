@@ -5,7 +5,7 @@ let selectedSize;
 let displayWidth;
 let displayHeight;
 let canvas;
-let pd = window.devicePixelRatio || 1;
+let pd = 1;
 
 
 // UI
