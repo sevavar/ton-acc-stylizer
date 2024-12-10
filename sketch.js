@@ -202,37 +202,53 @@ function createUI() {
   label8.class('label-container');
   label8.parent(uiContainer);
 
-  //Format Dropdown
-  inputs.format = createSelect();
-  inputs.format.class('dropdown');
-  inputs.format.option('1:1', [1080, 1080]);
-  inputs.format.option('9:16', [1080, 1920]);
-  inputs.format.option('16:9', [1920, 1080]);
-  inputs.format.selected('1:1', [1080, 1080]);
-  inputs.format.parent(uiContainer); 
+ // Format Dropdown
+inputs.format = createSelect();
+inputs.format.class('dropdown');
+inputs.format.option('1080*1080', [540, 540]);
+inputs.format.option('1080*1920', [540, 960]);
+inputs.format.option('1920*1080', [960, 540]);
+inputs.format.option('2048*2048', [1024, 1024]);
+inputs.format.option('2560*1440 (4K)', [1280, 720]); 
+inputs.format.option('3840*2160 (4K)', [1920, 1080]); 
+inputs.format.selected('1:1'); // Default selected value
+inputs.format.parent(uiContainer);
 
- inputs.format.changed(() => {
-  // Capture selected dimensions and set display size
-  selectedSize = inputs.format.value().split(',').map(Number);
-  displayWidth = selectedSize[0];
-  displayHeight = selectedSize[1];
+inputs.format.changed(() => {
+  // Extract dimensions from the selected option
+  let selectedSize = inputs.format.value().split(',').map(Number);
+  let [displayWidth, displayHeight] = selectedSize;
 
-  // Set canvas CSS to match display size without further scaling
-  canvas.style('width', displayWidth + 'px');
-  canvas.style('height', displayHeight + 'px');
+  // Update canvas style for the display size
+  canvas.style('width', `${displayWidth}px`);
+  canvas.style('height', `${displayHeight}px`);
 
-  // Resize the main canvas with `pd` adjustment for consistent visual size
-  resizeCanvas(displayWidth / pd, displayHeight / pd);
+  // Resize the main canvas and the offscreen buffer
+  resizeCanvas(displayWidth, displayHeight);
 
-  // Resize offscreen buffer for Retina display scaling consistency
-  offscreen = createGraphics(displayWidth * pd, displayHeight * pd, WEBGL);
+  offscreen = createGraphics((displayWidth/2) * pd, (displayHeight/2) * pd, WEBGL);
   offscreen.pixelDensity(pd);
   offscreen.ortho(
     -displayWidth / 2, displayWidth / 2,
     -displayHeight / 2, displayHeight / 2,
     -5000, 5000
   );
+  
+    console.log(`Display Width: ${displayWidth}, Height: ${displayHeight}`);
+console.log(`Pixel Density: ${pd}`);
+console.log(`Effective Width: ${displayWidth * pd}, Height: ${displayHeight * pd}`);
+
 });
+
+// Mutation Button
+    buttons.save = createButton(`
+      
+      <span class="center-align">Save PNG</span>
+      
+    `);
+    buttons.save.class('button');
+    buttons.save.mousePressed(savePNG);
+    buttons.save.parent(uiContainer);
 
   
 
@@ -282,6 +298,7 @@ function setup() {
 
   // Set the correct pixel density for the offscreen buffer
   offscreen.pixelDensity(pd); // Ensures the offscreen buffer matches the scaling
+  
 
 }
 
@@ -452,7 +469,7 @@ function handleKeyboardInput() {
   }
 }
 
-
+// File Handling
 function handleFileDrop(file) {
     if (file.type === 'image' && file.subtype === 'svg+xml') {
         let svgData = file.data;
@@ -606,5 +623,19 @@ function handleFileDrop(file) {
     });
     shapes.length = 0;
     }
+
+}
+
+//
+function savePNG() {
+  save(createFileName('tonacc-stylizer', 'png'));
+}
+
+function createFileName(prefix, extension){
+  let now = new Date();
+  let datePart = `${now.getDate()}${now.getMonth() + 1}${now.getFullYear()}`;
+  let timePart = `${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+  return `${prefix}_${datePart}${timePart}.${extension}`;
+}
 
 }
