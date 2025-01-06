@@ -365,13 +365,11 @@ function draw() {
   offscreen.scale(zoom * pd);
   offscreen.translate(posX, posY, posZ);
 
-  if (shapes.length > 0) {
-    // SVG case: Draw the extruded 3D model
+  if (shapes.length > 0) { //SVG Case
     offscreen.noStroke();
 
-    let lightDirection = createVector(0, -1, 0); // Light direction
+    let lightDirection = createVector(0, -1, 0); // "Light"
 
-    // Loop through shapes for 3D drawing
     for (let points of shapes) {
       // Front and back faces
       offscreen.fill(255);
@@ -383,7 +381,6 @@ function draw() {
       points.forEach(p => offscreen.vertex(p.x, p.y, 0));
       offscreen.endShape(CLOSE);
 
-      // Loop through each side face and draw it
       let n = points.length;
       for (let i = 0; i < n; i++) {
         let next = (i + 1) % n;
@@ -405,22 +402,19 @@ function draw() {
         offscreen.endShape(CLOSE);
       }
     }
-  } else if (img) {
-    // Raster image case: Draw the image onto the offscreen buffer
+  } else if (img) { //Raster Case
     offscreen.image(img, -width / 2 * pd, -height / 2 * pd, width * pd, height * pd);
   }
 
   offscreen.pop();
 
-  // Process pixels for ASCII art conversion
   offscreen.loadPixels();
   let columns = ceil(width / gridSize);
   let rows = ceil(height / gridSize);
 
   textFont(myFont);
-  asciiArt = ""; // Clear the buffer before starting
+  asciiArt = "";
 
-  // Instead of calling offscreen.pixels[i] inside the loop repeatedly, batch access pixels
   let pixelData = offscreen.pixels;
   
   for (let y = 0; y < rows; y++) {
@@ -476,11 +470,13 @@ function saveASCIIToFile() {
   saveStrings(asciiArt.split("\n"), filename); // Save the buffer as a text file
 }
 
-// Rotation
 function mousePressed() {
-  lastMouseX = mouseX;
-  lastMouseY = mouseY;
-  dragging = true;
+  // if (document.activeElement) {
+  //     document.activeElement.blur();
+  //   }
+    lastMouseX = mouseX;
+    lastMouseY = mouseY;
+    dragging = true;
 }
 function mouseReleased() {
   dragging = false;
@@ -501,12 +497,31 @@ function mouseDragged() {
 
 // Zoom
 function mouseWheel(event) {
-  zoom -= event.delta * 0.001;
-  zoom = constrain(zoom, 0.1, 5);
+  let container = canvasContainer.elt.getBoundingClientRect();
+  
+  if (
+    mouseX >= container.left &&
+    mouseX <= container.right &&
+    mouseY >= container.top &&
+    mouseY <= container.bottom
+  ) {
+    zoom -= event.delta * 0.001;
+    zoom = constrain(zoom, 0.1, 5);
+  }
 }
 
 // Move
 function handleKeyboardInput() {
+
+  const activeElement = document.activeElement;
+  const isControlActive = (
+    activeElement.tagName === 'INPUT' || 
+    activeElement.tagName === 'SELECT' || 
+    activeElement.tagName === 'TEXTAREA' || 
+    activeElement.tagName === 'BUTTON'
+  );
+
+  if (!isControlActive) {
   if (keyIsDown(LEFT_ARROW)) {
     posX -= 10;
   }
@@ -518,7 +533,8 @@ function handleKeyboardInput() {
   }
   if (keyIsDown(DOWN_ARROW)) {
     posY += 10;
-  }
+}
+}
 }
 
 // File Handling
@@ -547,12 +563,9 @@ function handleFileDrop(file) {
     });
     shapes.length = 0;
     }
-
 }
 
-
-        function handleSVG ()
-{
+function handleSVG () {
         
         // Handle base64 encoded SVG
         if (svgData.startsWith('data:image/svg+xml;base64,')) {
@@ -696,7 +709,6 @@ function handleFileDrop(file) {
             container.remove();
         }
 }
-
 
 function savePNG() {
   save(createFileName('tonacc-stylizer', 'png'));
