@@ -148,8 +148,9 @@ canvas {
     font-size:10px;
     line-height: 1.3;
     display: block;
-    position: absolute;
-    bottom: 20px;
+    margin-top: 20px;
+    /*position: absolute;
+    bottom: 20px;*/
 }
 
 .credits-link {
@@ -171,6 +172,7 @@ canvas {
     border-color:#fff;
     border-radius: 3px;
     margin-bottom: 10px;
+    font-family: "Roboto Mono";
 }
 
 
